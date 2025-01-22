@@ -1,0 +1,21 @@
+version: '3.7'
+services:
+  nats:
+    image: nats:latest
+    ports:
+      - "4222:4222"
+    restart: always
+
+  chatroom-client:
+    build: ./cmd/client
+    depends_on:
+      - nats
+    environment:
+      - NATS_URL=nats://nats:4222
+
+  chatroom-server:
+    build: ./cmd/server
+    depends_on:
+      - nats
+    environment:
+      - NATS_URL=nats://nats:4222
