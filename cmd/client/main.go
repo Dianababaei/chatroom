@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/nats-io/nats.go"
 )
@@ -18,21 +22,27 @@ func main() {
 	// Prompt user for their name
 	var name string
 	fmt.Print("Enter your name: ")
-	fmt.Scanln(&name)
+
+	// Using bufio.Reader to capture the input line correctly
+	reader := bufio.NewReader(os.Stdin)
+	name, _ = reader.ReadString('\n')
+	name = name[:len(name)-1] // Remove newline character
 
 	// Listen for incoming messages from the chatroom
 	go listenForMessages(natsConn)
 
-	// Start reading user input and send messages
-	for {
-		var message string
-		fmt.Print("You: ")
-		fmt.Scanln(&message)
+	// Handle system interrupt for graceful exit
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-		// Send message to NATS server
-		if message != "" {
-			natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s: %s", name, message)))
-		}
+	// Start reading user input and send messages asynchronously
+	go handleUserInput(natsConn, reader, name)
+
+	// Wait for exit signal (Ctrl+C)
+	select {
+	case <-signalChan:
+		fmt.Println("Exiting gracefully...")
+		return
 	}
 }
 
@@ -43,5 +53,35 @@ func listenForMessages(natsConn *nats.Conn) {
 	})
 	if err != nil {
 		log.Fatal("Error subscribing to NATS channel:", err)
+	}
+
+	// Subscribe to the 'users' topic to listen for active user requests
+	_, err = natsConn.Subscribe("users", func(msg *nats.Msg) {
+		// Here, you would respond to the active users request.
+		activeUsers := "Alice, Bob, Diana, Sadra"
+		natsConn.Publish(msg.Reply, []byte(fmt.Sprintf("Active Users: %s", activeUsers)))
+	})
+	if err != nil {
+		log.Fatal("Error subscribing to users topic:", err)
+	}
+}
+
+// handleUserInput handles the user input asynchronously
+func handleUserInput(natsConn *nats.Conn, reader *bufio.Reader, name string) {
+	for {
+		fmt.Print("You: ")
+		message, _ := reader.ReadString('\n')
+		message = message[:len(message)-1] // Remove newline character
+
+		// If message is not empty, handle it
+		if message != "" {
+			if message == "#users" {
+				// Request the list of active users
+				natsConn.Publish("users", []byte("Requesting active users"))
+			} else {
+				// Send message to the chatroom
+				natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s: %s", name, message)))
+			}
+		}
 	}
 }
