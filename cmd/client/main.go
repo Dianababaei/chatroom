@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-	// Connect to NATS server
 	natsConn, err := nats.Connect("nats://localhost:4222")
 	if err != nil {
 		log.Fatal("Error connecting to NATS server:", err)
@@ -23,7 +22,6 @@ func main() {
 	var name string
 	fmt.Print("Enter your name: ")
 
-	// Using bufio.Reader to capture the input line correctly
 	reader := bufio.NewReader(os.Stdin)
 	name, _ = reader.ReadString('\n')
 	name = name[:len(name)-1] // Remove newline character
@@ -38,7 +36,7 @@ func main() {
 	// Start reading user input and send messages asynchronously
 	go handleUserInput(natsConn, reader, name)
 
-	// Wait for exit signal (Ctrl+C)
+	// Wait for exit signal
 	select {
 	case <-signalChan:
 		fmt.Println("Exiting gracefully...")
@@ -66,14 +64,12 @@ func listenForMessages(natsConn *nats.Conn) {
 	}
 }
 
-// handleUserInput handles the user input asynchronously
 func handleUserInput(natsConn *nats.Conn, reader *bufio.Reader, name string) {
 	for {
 		fmt.Print("You: ")
 		message, _ := reader.ReadString('\n')
 		message = message[:len(message)-1] // Remove newline character
 
-		// If message is not empty, handle it
 		if message != "" {
 			if message == "#users" {
 				// Request the list of active users
