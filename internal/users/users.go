@@ -77,32 +77,25 @@ func (u *User) ListenForInput(chatRoom ChatRoomInterface, natsConn *nats.Conn) {
 	// Listen for the response to #users command
 	go listenForUserListResponse(natsConn)
 
-	// Main loop for user input
 	for {
 		var message string
 		fmt.Print("You: ")
 		fmt.Scanln(&message)
 
 		if message == "" {
-			// Skip empty messages
 			continue
 		}
 
 		if message == "#users" {
-			// Send request for active users
 			natsConn.Publish("users", []byte("Requesting active users"))
 		} else {
-			// Send the message to chatroom
 			chatRoom.SendMessage(fmt.Sprintf("%s: %s", u.Name, message))
 		}
 	}
 }
 
-// listenForUserListResponse listens for the server's response with the list of active users.
 func listenForUserListResponse(natsConn *nats.Conn) {
-	// Subscribe to the response channel from the server
 	_, err := natsConn.Subscribe("users", func(msg *nats.Msg) {
-		// Handle response from the server with active users list
 		fmt.Printf("\nActive Users: %s\n", string(msg.Data))
 	})
 	if err != nil {
