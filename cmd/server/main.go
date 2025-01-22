@@ -11,20 +11,16 @@ import (
 var userManager *users.UserManager
 
 func main() {
-	// Log the starting of the application
 	log.Println("Server is starting...")
 
-	// Connect to NATS server
 	natsConn, err := nats.Connect("nats://localhost:4222")
 	if err != nil {
 		log.Fatal("Error connecting to NATS server:", err)
 	}
 	defer natsConn.Close()
 
-	// Log successful connection
 	log.Println("Connected to NATS server")
 
-	// Initialize user manager
 	userManager = users.NewUserManager()
 
 	// Subscribe to the 'chatroom' channel to listen for incoming messages
@@ -38,7 +34,6 @@ func main() {
 		log.Fatal("Error subscribing to NATS 'chatroom' channel:", err)
 	}
 
-	// Log subscription success
 	log.Println("Subscribed to 'chatroom' channel for receiving messages")
 
 	// Subscribe to the 'users' channel to send active user list when requested
@@ -51,7 +46,6 @@ func main() {
 		response := fmt.Sprintf("Active Users: %v", activeUsers)
 		natsConn.Publish(msg.Reply, []byte(response))
 
-		// Log the response sent to the user
 		log.Printf("Sent active users response: %s\n", response)
 	})
 
@@ -59,10 +53,8 @@ func main() {
 		log.Fatal("Error subscribing to NATS 'users' channel:", err)
 	}
 
-	// Log subscription success
 	log.Println("Subscribed to 'users' channel for responding with active users")
 
-	// Keep the server running to listen for messages
 	log.Println("Server is running and waiting for messages...")
 	select {}
 }
