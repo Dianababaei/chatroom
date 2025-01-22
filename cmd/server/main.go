@@ -11,49 +11,39 @@ import (
 var userManager *users.UserManager
 
 func main() {
-	log.Println("Server is starting...")
-
+	// Connect to NATS server
 	natsConn, err := nats.Connect("nats://localhost:4222")
 	if err != nil {
 		log.Fatal("Error connecting to NATS server:", err)
 	}
 	defer natsConn.Close()
 
-	log.Println("Connected to NATS server")
-
+	// Initialize user manager
 	userManager = users.NewUserManager()
 
-	// Subscribe to the 'chatroom' channel to listen for incoming messages
+	// Subscribe to the 'chatroom' channel for receiving messages
 	_, err = natsConn.Subscribe("chatroom", func(msg *nats.Msg) {
-		// Broadcast incoming messages and log them
-		log.Printf("Received message on 'chatroom' channel: %s\n", string(msg.Data))
-		fmt.Printf("New message: %s\n", string(msg.Data))
+		log.Printf("Received message on 'chatroom' channel: %s", string(msg.Data))
+		fmt.Printf("\n%s\n", string(msg.Data))
 	})
 
 	if err != nil {
-		log.Fatal("Error subscribing to NATS 'chatroom' channel:", err)
+		log.Fatal("Error subscribing to NATS channel:", err)
 	}
 
-	log.Println("Subscribed to 'chatroom' channel for receiving messages")
-
-	// Subscribe to the 'users' channel to send active user list when requested
+	// Subscribe to the 'users' channel to handle active user requests
 	_, err = natsConn.Subscribe("users", func(msg *nats.Msg) {
-		// Log when a request for active users is received
-		log.Printf("Received request for active users: %s\n", msg.Data)
-
-		// Fetch active users and send them back as a response
+		// Get the active user list and respond to the requesting client
 		activeUsers := userManager.GetActiveUsers()
 		response := fmt.Sprintf("Active Users: %v", activeUsers)
-		natsConn.Publish(msg.Reply, []byte(response))
-
-		log.Printf("Sent active users response: %s\n", response)
+		if msg.Reply != "" {
+			natsConn.Publish(msg.Reply, []byte(response))
+		}
 	})
 
 	if err != nil {
-		log.Fatal("Error subscribing to NATS 'users' channel:", err)
+		log.Fatal("Error subscribing to NATS users channel:", err)
 	}
-
-	log.Println("Subscribed to 'users' channel for responding with active users")
 
 	log.Println("Server is running and waiting for messages...")
 	select {}
