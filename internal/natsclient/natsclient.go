@@ -7,7 +7,6 @@ import (
 )
 
 func Connect() (*nats.Conn, error) {
-	// Connect to NATS server (default)
 	conn, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
 		log.Fatal("Error connecting to NATS:", err)
