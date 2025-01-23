@@ -4,6 +4,7 @@ import (
 	"chatroom/internal/users"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/nats-io/nats.go"
 )
@@ -18,31 +19,48 @@ func main() {
 	}
 	defer natsConn.Close()
 
-	// Initialize user manager
+	// Initialize UserManager
 	userManager = users.NewUserManager()
 
-	// Subscribe to the 'chatroom' channel for receiving messages
+	// Subscribe to 'chatroom' to handle messages
 	_, err = natsConn.Subscribe("chatroom", func(msg *nats.Msg) {
 		log.Printf("Received message on 'chatroom' channel: %s", string(msg.Data))
 		fmt.Printf("\n%s\n", string(msg.Data))
 	})
-
 	if err != nil {
-		log.Fatal("Error subscribing to NATS channel:", err)
+		log.Fatal("Error subscribing to NATS chatroom channel:", err)
 	}
 
-	// Subscribe to the 'users' channel to handle active user requests
+	// Subscribe to 'users' to respond with the active user list
 	_, err = natsConn.Subscribe("users", func(msg *nats.Msg) {
-		// Get the active user list and respond to the requesting client
 		activeUsers := userManager.GetActiveUsers()
-		response := fmt.Sprintf("Active Users: %v", activeUsers)
+		response := fmt.Sprintf("Active Users: %s", strings.Join(activeUsers, ", "))
 		if msg.Reply != "" {
 			natsConn.Publish(msg.Reply, []byte(response))
 		}
 	})
-
 	if err != nil {
 		log.Fatal("Error subscribing to NATS users channel:", err)
+	}
+
+	// Handle user join
+	_, err = natsConn.Subscribe("user.join", func(msg *nats.Msg) {
+		userManager.AddUser(&users.User{Name: string(msg.Data)})
+		log.Printf("User joined: %s", string(msg.Data))
+		natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s joined the chatroom.", string(msg.Data))))
+	})
+	if err != nil {
+		log.Fatal("Error subscribing to user.join channel:", err)
+	}
+
+	// Handle user leave
+	_, err = natsConn.Subscribe("user.leave", func(msg *nats.Msg) {
+		userManager.RemoveUser(string(msg.Data))
+		log.Printf("User left: %s", string(msg.Data))
+		natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s left the chatroom.", string(msg.Data))))
+	})
+	if err != nil {
+		log.Fatal("Error subscribing to user.leave channel:", err)
 	}
 
 	log.Println("Server is running and waiting for messages...")

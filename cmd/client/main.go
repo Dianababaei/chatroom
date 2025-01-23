@@ -24,11 +24,11 @@ func main() {
 	fmt.Print("Enter your name: ")
 	reader := bufio.NewReader(os.Stdin)
 	name, _ := reader.ReadString('\n')
-	name = strings.TrimSpace(name) // Remove extra spaces or newlines
+	name = strings.TrimSpace(name)
 
-	// Subscribe to a unique reply channel for this client
-	replySubject := fmt.Sprintf("users.%s", name)
-	go listenForUserList(natsConn, replySubject)
+	// Notify server that the user has joined
+	natsConn.Publish("user.join", []byte(name))
+	defer natsConn.Publish("user.leave", []byte(name)) // Notify server when the user leaves
 
 	// Listen for incoming chat messages
 	go listenForMessages(natsConn, name)
@@ -48,40 +48,35 @@ func main() {
 		}
 
 		if message == "#users" {
-			// Send request for active users
-			natsConn.PublishRequest("users", replySubject, []byte("Requesting active users"))
+			// Request the list of active users
+			replySubject := fmt.Sprintf("users.%s", name)
+			go listenForUserList(natsConn, replySubject)
+			natsConn.PublishRequest("users", replySubject, []byte(""))
 		} else {
 			// Broadcast message to the chatroom
 			natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s: %s", name, message)))
 		}
 
-		// Handle exit signal (Ctrl+C)
+		// Handle exit signal
 		select {
 		case <-signalChan:
 			fmt.Println("\nExiting chatroom...")
 			return
 		default:
-			// Keep running
 		}
 	}
 }
 
 func listenForMessages(natsConn *nats.Conn, clientName string) {
 	_, err := natsConn.Subscribe("chatroom", func(msg *nats.Msg) {
-		parts := strings.SplitN(string(msg.Data), ":", 2)
-		if len(parts) < 2 {
+		message := string(msg.Data)
+		if strings.HasPrefix(message, clientName+":") {
+			// Skip messages sent by this client
 			return
 		}
 
-		sender := parts[0]
-		content := parts[1]
-
-		if sender == clientName {
-			return
-		}
-
-		// Clear the prompt, show the message, and reprint the prompt
-		fmt.Printf("\r%s: %s\nYou: ", sender, content)
+		// Clear the current line, print the new message, and re-display "You: " for user input
+		fmt.Printf("\r%s\nYou: ", message)
 	})
 	if err != nil {
 		log.Fatal("Error subscribing to NATS chatroom channel:", err)
@@ -90,8 +85,8 @@ func listenForMessages(natsConn *nats.Conn, clientName string) {
 
 func listenForUserList(natsConn *nats.Conn, replySubject string) {
 	_, err := natsConn.Subscribe(replySubject, func(msg *nats.Msg) {
-		// Print the list of active users
-		fmt.Printf("\n%s\nYou: ", string(msg.Data))
+		// Clear the current line, print the list of active users, and re-display "You: "
+		fmt.Printf("\r%s\nYou: ", string(msg.Data))
 	})
 	if err != nil {
 		log.Fatal("Error subscribing to user list reply channel:", err)
