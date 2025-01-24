@@ -15,9 +15,7 @@ func NewChatRoom(natsConn *nats.Conn) *ChatRoom {
 	return &ChatRoom{natsConn: natsConn}
 }
 
-// Listen for messages and handle user interactions
 func (c *ChatRoom) ListenForMessages(userManager *users.UserManager) {
-	// Listen for new messages on NATS
 	subscription, err := c.natsConn.Subscribe("chatroom", func(msg *nats.Msg) {
 		fmt.Printf("New message: %s\n", string(msg.Data))
 	})
@@ -34,7 +32,6 @@ func (c *ChatRoom) ListenForMessages(userManager *users.UserManager) {
 	})
 }
 
-// Send a message to the chatroom via NATS
 func (c *ChatRoom) SendMessage(message string) {
 	c.natsConn.Publish("chatroom", []byte(message))
 }

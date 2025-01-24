@@ -1,6 +1,6 @@
 module chatroom
 
-go 1.23.2
+go 1.20
 
 require github.com/nats-io/nats.go v1.38.0
 

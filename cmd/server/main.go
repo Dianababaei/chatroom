@@ -12,17 +12,14 @@ import (
 var userManager *users.UserManager
 
 func main() {
-	// Connect to the NATS server
 	natsConn, err := nats.Connect("nats://localhost:4222")
 	if err != nil {
 		log.Fatal("Error connecting to NATS server:", err)
 	}
 	defer natsConn.Close()
 
-	// Initialize the UserManager
 	userManager = users.NewUserManager()
 
-	// Handle user join
 	_, err = natsConn.Subscribe("user.join", func(msg *nats.Msg) {
 		userName := string(msg.Data)
 		userManager.AddUser(&users.User{Name: userName})
