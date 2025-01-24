@@ -16,26 +16,20 @@ A simple real-time chatroom built in **Go** using **NATS** as the message broker
 - **Go** to run the client manually.
 
 ### Setup:
-1. **Build containers**:
+1. Build containers:
     ```bash
     docker-compose build
     ```
 
-2. **Start services**:
+2. Start services:
     ```bash
     docker-compose up
     ```
 
-3. **Run the client manually**:
+3. Run the client manually:
     ```bash
     go run cmd/client/main.go
     ```
-
-4. **Interact with the chatroom**:
-    - Type your message to send.
-    - Use `#users` to see active users.
-    - Use `#msg <username> <message>` to send private messages.
-    - Type `#exit` to leave.
 
 ### Stop services:
 ```bash
