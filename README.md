@@ -1,10 +1,10 @@
-
 ```markdown
 # Chatroom Application
 
 A simple real-time chatroom built in **Go** using **NATS** as the message broker. It supports public chat, private messages, and user management.
 
 ## Key Features
+
 - Real-time messaging.
 - Public chatroom and private messaging.
 - View active users.
@@ -13,6 +13,7 @@ A simple real-time chatroom built in **Go** using **NATS** as the message broker
 ## How to Run
 
 ### Prerequisites
+
 - **Docker** and **Docker Compose** for containerization.
 - **Go** to run the client manually.
 
@@ -34,12 +35,14 @@ A simple real-time chatroom built in **Go** using **NATS** as the message broker
     ```
 
 ### Stop services
+
+To stop the services and remove containers:
+
 ```bash
 docker-compose down
 ```
 
+
 ## Technologies Used
+
 - **Go**, **NATS**, **Docker**, **Docker Compose**.
-
-
-
