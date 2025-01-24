@@ -41,3 +41,10 @@ func (um *UserManager) GetActiveUsers() []string {
 	}
 	return activeUsers
 }
+
+func (um *UserManager) IsUserExists(name string) bool {
+	um.mu.Lock()
+	defer um.mu.Unlock()
+	_, exists := um.users[name]
+	return exists
+}

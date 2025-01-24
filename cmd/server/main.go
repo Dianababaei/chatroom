@@ -22,15 +22,27 @@ func main() {
 
 	_, err = natsConn.Subscribe("user.join", func(msg *nats.Msg) {
 		userName := string(msg.Data)
+
+		if userManager.IsUserExists(userName) {
+			if msg.Reply != "" {
+				natsConn.Publish(msg.Reply, []byte("This name already exists."))
+			}
+			return
+		}
+
 		userManager.AddUser(&users.User{Name: userName})
 		log.Printf("User joined: %s", userName)
+
+		if msg.Reply != "" {
+			natsConn.Publish(msg.Reply, []byte("Welcome to the chatroom!"))
+		}
+
 		natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s joined the chatroom.", userName)))
 	})
 	if err != nil {
 		log.Fatal("Error subscribing to user.join channel:", err)
 	}
 
-	// Handle user leave
 	_, err = natsConn.Subscribe("user.leave", func(msg *nats.Msg) {
 		userName := string(msg.Data)
 		userManager.RemoveUser(userName)
@@ -41,7 +53,6 @@ func main() {
 		log.Fatal("Error subscribing to user.leave channel:", err)
 	}
 
-	// Respond to #users command
 	_, err = natsConn.Subscribe("users", func(msg *nats.Msg) {
 		activeUsers := userManager.GetActiveUsers()
 		response := fmt.Sprintf("Active Users: %s", strings.Join(activeUsers, ", "))

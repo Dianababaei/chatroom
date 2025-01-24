@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/nats-io/nats.go"
 )
@@ -20,16 +21,53 @@ func main() {
 	defer natsConn.Close()
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter your name: ")
-	name, _ := reader.ReadString('\n')
-	name = strings.TrimSpace(name)
+	var name string
+	for {
+		fmt.Print("Enter your name: ")
+		name, _ = reader.ReadString('\n')
+		name = strings.TrimSpace(name)
+
+		// Send user.join request with reply subject
+		replySubject := fmt.Sprintf("join.%s", name)
+
+		// Subscribe to the reply subject for server response
+		sub, err := natsConn.SubscribeSync(replySubject)
+		if err != nil {
+			log.Fatal("Error subscribing to join reply channel:", err)
+		}
+
+		// Publish the join request
+		natsConn.PublishRequest("user.join", replySubject, []byte(name))
+
+		// Wait for server response
+		msg, err := sub.NextMsg(2 * time.Second)
+		sub.Unsubscribe()
+
+		if err != nil {
+			fmt.Println("Server did not respond. Please try again.")
+			continue
+		}
+
+		response := string(msg.Data)
+		if response == "This name already exists." {
+			fmt.Println(response)
+			continue
+		}
+
+		break
+	}
+
+	go listenForMessages(natsConn, name)
+	go listenForPrivateMessages(natsConn, name)
+
+	// Create a persistent subscription for user list responses
+	replySubject := fmt.Sprintf("users.%s", name)
+	go listenForUserList(natsConn, replySubject)
+
+	time.Sleep(90 * time.Millisecond)
 
 	natsConn.Publish("user.join", []byte(name))
 	defer natsConn.Publish("user.leave", []byte(name))
-
-	go listenForPrivateMessages(natsConn, name)
-
-	go listenForMessages(natsConn, name)
 
 	fmt.Println("\nWelcome to the Chatroom!")
 	fmt.Println("Commands:")
@@ -49,8 +87,6 @@ func main() {
 
 		switch {
 		case command == "#users":
-			replySubject := fmt.Sprintf("users.%s", name)
-			go listenForUserList(natsConn, replySubject)
 			natsConn.PublishRequest("users", replySubject, nil)
 
 		case command == "#exit":
@@ -97,6 +133,7 @@ func listenForMessages(natsConn *nats.Conn, clientName string) {
 }
 
 func listenForUserList(natsConn *nats.Conn, replySubject string) {
+	// Persistent subscription for user list responses
 	_, err := natsConn.Subscribe(replySubject, func(msg *nats.Msg) {
 		fmt.Printf("\r%s\nYou: ", string(msg.Data))
 	})
