@@ -31,11 +31,11 @@ Key Features:
     go run cmd/client/main.go
     ```
 
-### Stop services:
+ Stop services:
 ```bash
 docker-compose down
 ```
 
-## Technologies Used:
+ Technologies Used:
 - **Go**, **NATS**, **Docker**, **Docker Compose**.
 
