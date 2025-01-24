@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	// Connect to NATS server
+	// Connect to the NATS server
 	natsConn, err := nats.Connect("nats://localhost:4222")
 	if err != nil {
 		log.Fatal("Error connecting to NATS server:", err)
@@ -21,72 +21,85 @@ func main() {
 	defer natsConn.Close()
 
 	// Prompt user for their name
-	fmt.Print("Enter your name: ")
 	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter your name: ")
 	name, _ := reader.ReadString('\n')
 	name = strings.TrimSpace(name)
 
-	// Notify server that the user has joined
+	// Notify the server of user join
 	natsConn.Publish("user.join", []byte(name))
-	defer natsConn.Publish("user.leave", []byte(name)) // Notify server when the user leaves
+	defer natsConn.Publish("user.leave", []byte(name)) // Notify server when user leaves
 
-	// Listen for incoming chat messages
+	// Create a reply subject for the `#users` command
+	replySubject := fmt.Sprintf("users.%s", name)
+	go listenForUserList(natsConn, replySubject)
+
+	// Subscribe to chatroom messages
 	go listenForMessages(natsConn, name)
 
-	// Handle system interrupt for graceful exit
+	// Display simple CLI instructions
+	fmt.Println("\nWelcome to the Chatroom!")
+	fmt.Println("Commands:")
+	fmt.Println("  Type your message and press Enter to send.")
+	fmt.Println("  Type '#users' to see the list of active users.")
+	fmt.Println("  Type '#exit' to leave the chatroom.")
+	fmt.Println()
+
+	// Declare the signal channel to handle system interrupts
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Main loop: Read user input and send messages
+	// Main CLI loop
 	for {
 		fmt.Print("You: ")
-		message, _ := reader.ReadString('\n')
-		message = strings.TrimSpace(message)
+		input, _ := reader.ReadString('\n')
+		command := strings.TrimSpace(input)
 
-		if message == "" {
-			continue
-		}
-
-		if message == "#users" {
+		switch command {
+		case "#users":
 			// Request the list of active users
-			replySubject := fmt.Sprintf("users.%s", name)
-			go listenForUserList(natsConn, replySubject)
-			natsConn.PublishRequest("users", replySubject, []byte(""))
-		} else {
-			// Broadcast message to the chatroom
-			natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s: %s", name, message)))
+			natsConn.PublishRequest("users", replySubject, nil)
+			// Wait for the response to print active users
+		case "#exit":
+			// Exit the chatroom
+			fmt.Println("\nExiting the chatroom...")
+			return
+		default:
+			// Send a chat message
+			if command != "" {
+				natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s: %s", name, command)))
+			}
 		}
 
-		// Handle exit signal
+		// Handle interrupt signal for exiting
 		select {
 		case <-signalChan:
-			fmt.Println("\nExiting chatroom...")
+			fmt.Println("\nExiting the chatroom...")
 			return
 		default:
 		}
 	}
 }
 
+// listenForMessages subscribes to the chatroom topic and prints incoming messages.
 func listenForMessages(natsConn *nats.Conn, clientName string) {
 	_, err := natsConn.Subscribe("chatroom", func(msg *nats.Msg) {
 		message := string(msg.Data)
-		if strings.HasPrefix(message, clientName+":") {
+		if !strings.HasPrefix(message, clientName+":") {
 			// Skip messages sent by this client
-			return
+			fmt.Printf("\r%s\nYou: ", message)
 		}
-
-		// Clear the current line, print the new message, and re-display "You: " for user input
-		fmt.Printf("\r%s\nYou: ", message)
 	})
 	if err != nil {
 		log.Fatal("Error subscribing to NATS chatroom channel:", err)
 	}
 }
 
+// listenForUserList subscribes to the `#users` reply subject only once.
 func listenForUserList(natsConn *nats.Conn, replySubject string) {
+	// Make sure that we are not repeatedly printing "Active Users"
 	_, err := natsConn.Subscribe(replySubject, func(msg *nats.Msg) {
-		// Clear the current line, print the list of active users, and re-display "You: "
-		fmt.Printf("\r%s\nYou: ", string(msg.Data))
+		fmt.Printf("\r %s\nYou: ", string(msg.Data))
 	})
 	if err != nil {
 		log.Fatal("Error subscribing to user list reply channel:", err)

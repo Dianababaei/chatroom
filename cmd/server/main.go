@@ -12,26 +12,39 @@ import (
 var userManager *users.UserManager
 
 func main() {
-	// Connect to NATS server
+	// Connect to the NATS server
 	natsConn, err := nats.Connect("nats://localhost:4222")
 	if err != nil {
 		log.Fatal("Error connecting to NATS server:", err)
 	}
 	defer natsConn.Close()
 
-	// Initialize UserManager
+	// Initialize the UserManager
 	userManager = users.NewUserManager()
 
-	// Subscribe to 'chatroom' to handle messages
-	_, err = natsConn.Subscribe("chatroom", func(msg *nats.Msg) {
-		log.Printf("Received message on 'chatroom' channel: %s", string(msg.Data))
-		fmt.Printf("\n%s\n", string(msg.Data))
+	// Handle user join
+	_, err = natsConn.Subscribe("user.join", func(msg *nats.Msg) {
+		userName := string(msg.Data)
+		userManager.AddUser(&users.User{Name: userName})
+		log.Printf("User joined: %s", userName)
+		natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s joined the chatroom.", userName)))
 	})
 	if err != nil {
-		log.Fatal("Error subscribing to NATS chatroom channel:", err)
+		log.Fatal("Error subscribing to user.join channel:", err)
 	}
 
-	// Subscribe to 'users' to respond with the active user list
+	// Handle user leave
+	_, err = natsConn.Subscribe("user.leave", func(msg *nats.Msg) {
+		userName := string(msg.Data)
+		userManager.RemoveUser(userName)
+		log.Printf("User left: %s", userName)
+		natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s left the chatroom.", userName)))
+	})
+	if err != nil {
+		log.Fatal("Error subscribing to user.leave channel:", err)
+	}
+
+	// Respond to #users command
 	_, err = natsConn.Subscribe("users", func(msg *nats.Msg) {
 		activeUsers := userManager.GetActiveUsers()
 		response := fmt.Sprintf("Active Users: %s", strings.Join(activeUsers, ", "))
@@ -40,29 +53,9 @@ func main() {
 		}
 	})
 	if err != nil {
-		log.Fatal("Error subscribing to NATS users channel:", err)
+		log.Fatal("Error subscribing to users channel:", err)
 	}
 
-	// Handle user join
-	_, err = natsConn.Subscribe("user.join", func(msg *nats.Msg) {
-		userManager.AddUser(&users.User{Name: string(msg.Data)})
-		log.Printf("User joined: %s", string(msg.Data))
-		natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s joined the chatroom.", string(msg.Data))))
-	})
-	if err != nil {
-		log.Fatal("Error subscribing to user.join channel:", err)
-	}
-
-	// Handle user leave
-	_, err = natsConn.Subscribe("user.leave", func(msg *nats.Msg) {
-		userManager.RemoveUser(string(msg.Data))
-		log.Printf("User left: %s", string(msg.Data))
-		natsConn.Publish("chatroom", []byte(fmt.Sprintf("%s left the chatroom.", string(msg.Data))))
-	})
-	if err != nil {
-		log.Fatal("Error subscribing to user.leave channel:", err)
-	}
-
-	log.Println("Server is running and waiting for messages...")
+	log.Println("Server is running...")
 	select {}
 }

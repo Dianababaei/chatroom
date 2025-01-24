@@ -1,17 +1,8 @@
 package users
 
 import (
-	"fmt"
-	"log"
 	"sync"
-
-	"github.com/nats-io/nats.go"
 )
-
-// ChatRoomInterface defines the methods the User struct needs from a ChatRoom.
-type ChatRoomInterface interface {
-	SendMessage(message string)
-}
 
 // User represents a chatroom user.
 type User struct {
@@ -24,81 +15,35 @@ type UserManager struct {
 	mu    sync.Mutex
 }
 
-// Global variable to store user manager instance
-var userManager *UserManager
-
-// NewUserManager initializes the UserManager instance if not already done.
+// NewUserManager creates a new instance of UserManager.
 func NewUserManager() *UserManager {
-	if userManager == nil {
-		userManager = &UserManager{users: make(map[string]*User)}
+	return &UserManager{
+		users: make(map[string]*User),
 	}
-	return userManager
 }
 
+// AddUser adds a user to the active list.
 func (um *UserManager) AddUser(user *User) {
 	um.mu.Lock()
 	defer um.mu.Unlock()
 	um.users[user.Name] = user
 }
 
+// RemoveUser removes a user from the active list.
 func (um *UserManager) RemoveUser(name string) {
 	um.mu.Lock()
 	defer um.mu.Unlock()
 	delete(um.users, name)
 }
 
+// GetActiveUsers returns a list of active users' names.
 func (um *UserManager) GetActiveUsers() []string {
 	um.mu.Lock()
 	defer um.mu.Unlock()
 
-	var activeUsers []string
+	activeUsers := make([]string, 0, len(um.users))
 	for _, user := range um.users {
 		activeUsers = append(activeUsers, user.Name)
 	}
 	return activeUsers
-}
-
-// NewUser creates a new user and asks for their name.
-func NewUser() *User {
-	var name string
-	fmt.Print("Enter your name: ")
-	fmt.Scanln(&name)
-	return &User{Name: name}
-}
-
-// ListenForInput handles user input and sends messages to the ChatRoomInterface.
-func (u *User) ListenForInput(chatRoom ChatRoomInterface, natsConn *nats.Conn) {
-	// Add user to the UserManager
-	userManager.AddUser(u)
-
-	// Remove user when they exit
-	defer userManager.RemoveUser(u.Name)
-
-	// Listen for the response to #users command
-	go listenForUserListResponse(natsConn)
-
-	for {
-		var message string
-		fmt.Print("You: ")
-		fmt.Scanln(&message)
-
-		if message == "" {
-			continue
-		}
-
-		if message == "#users" {
-			natsConn.Publish("users", []byte("Requesting active users"))
-		} else {
-			chatRoom.SendMessage(fmt.Sprintf("%s: %s", u.Name, message))
-		}
-	}
-}
-
-func listenForUserListResponse(natsConn *nats.Conn) {
-	_, err := natsConn.Subscribe("users", func(msg *nats.Msg) {
-		fmt.Printf("\nActive Users: %s\n", string(msg.Data))
-	})
-	if err != nil {
-		log.Fatal("Error subscribing to NATS users channel:", err)
-	}
 }
