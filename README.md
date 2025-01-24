@@ -1,5 +1,5 @@
-```markdown
-# Chatroom Application
+
+## Chatroom Application
 
 A simple real-time chatroom built in **Go** using **NATS** as the message broker. It supports public chat, private messages, and user management.
 
@@ -14,22 +14,22 @@ A simple real-time chatroom built in **Go** using **NATS** as the message broker
 
 ### Prerequisites
 
-- **Docker** and **Docker Compose** for containerization.
-- **Go** to run the client manually.
+- *Docker* and *Docker Compose* for containerization.
+- *Go* to run the client manually.
 
 ### Setup
 
-1. **Build containers**:
+1. *Build containers*:
     ```bash
     docker-compose build
     ```
 
-2. **Start services**:
+2. *Start services*:
     ```bash
     docker-compose up
     ```
 
-3. **Run the client manually**:
+3. *Run the client manually*:
     ```bash
     go run cmd/client/main.go
     ```
